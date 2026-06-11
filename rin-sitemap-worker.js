@@ -49,7 +49,15 @@ export default {
       
       // 首页
       xml += `  <url>\n    <loc>${BASE_URL}/</loc>\n    <changefreq>daily</changefreq>\n    <priority>1.0</priority>\n  </url>\n`;
+      
+      // ----------------- 新增：固定界面 -----------------
+      const fixedPages = ['/timeline', '/moments', '/hashtags', '/friends', '/about'];
+      for (const page of fixedPages) {
+        xml += `  <url>\n    <loc>${BASE_URL}${page}</loc>\n    <changefreq>weekly</changefreq>\n    <priority>0.9</priority>\n  </url>\n`;
+      }
+      // ------------------------------------------------
 
+      // 动态文章页面
       for (const row of results) {
         const path = row.alias ? `/feed/${row.alias}` : `/feed/${row.id}`;
         const postUrl = `${BASE_URL}${path}`;
