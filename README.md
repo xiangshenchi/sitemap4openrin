@@ -1,4 +1,4 @@
-# openRin Sitemap Maker (站点地图生成器)
+# SiteMap Maker for OpenRin (站点地图生成器)
 
 专为 [openRin](https://github.com/openRin/Rin) 打造的轻量级站点地图（Sitemap）生成器，依托 Cloudflare Workers，直接读取 D1 数据库，完美解决基于 RSS 生成 Sitemap 时“仅包含最新 20 篇文章”的数量限制。
 
