@@ -76,7 +76,7 @@ export default {
         const postUrl = `${BASE_URL}${path}`;
         
         // Rin 数据库储存的时间戳(基于 unixepoch)是秒级的
-        const timestamp = row.updated_at || row.created_at || Math.floor(Date.now() / 1000);
+        const timestamp = row.updated_at || row.created_at;
         const lastMod = new Date(timestamp * 1000).toISOString().split('T')[0];
         
         xml += `  <url>\n    <loc>${postUrl}</loc>\n    <lastmod>${lastMod}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>0.8</priority>\n  </url>\n`;
