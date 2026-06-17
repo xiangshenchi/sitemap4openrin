@@ -23,7 +23,7 @@ export default {
 
       // --- 构造 ETag 和 Last-Modified 头 ---
       const eTag = `"${currentCacheFingerprint}"`;
-      // 将数据库里的秒级时间戳转换成 HTTP 协议标准的 GMT 时间格式。如果数据库为空，回退到当前时间。
+      // 将数据库里的秒级时间戳转换成 HTTP 协议标准的 GMT 时间格式。
       const lastModTimestamp = metaRes.last_update * 1000;
       const lastModifiedDate = new Date(lastModTimestamp).toUTCString();
 
