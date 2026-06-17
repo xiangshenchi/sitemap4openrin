@@ -13,14 +13,55 @@ export default {
     const KV_META = "cached_sitemap_meta"; 
 
     try {
-      // 核心修改：不仅获取数量(count)，同时获取所有文章中的最后更新时间(last_update)
+      // 核心修改：获取数量(count)和所有文章中的最后更新时间(last_update)
       const metaRes = await env.DB.prepare(
         "SELECT COUNT(*) as count, MAX(updated_at) as last_update FROM feeds WHERE listed = 1 AND draft = 0"
       ).first();
       
       // 生成缓存指纹：格式为 "数量_最后更新时间戳"
-      // 任何文章新增、删除（count变化）或 修改（last_update变化），都会导致指纹改变
       const currentCacheFingerprint = `${metaRes.count}_${metaRes.last_update || 0}`;
+
+      // --- 构造 ETag 和 Last-Modified 头 ---
+      const eTag = `"${currentCacheFingerprint}"`;
+      // 将数据库里的秒级时间戳转换成 HTTP 协议标准的 GMT 时间格式。如果数据库为空，回退到当前时间。
+      const lastModTimestamp = metaRes.last_update ? metaRes.last_update * 1000 : Date.now();
+      const lastModifiedDate = new Date(lastModTimestamp).toUTCString();
+
+      // 定义公共基础响应头
+      const baseHeaders = {
+        "Content-Type": "application/xml; charset=utf-8",
+        "Cache-Control": "public, max-age=60",
+        "ETag": eTag,
+        "Last-Modified": lastModifiedDate
+      };
+
+      // --- 严谨处理搜索引擎的条件请求 (304 Not Modified) 节省带宽 ---
+      const reqEtag = request.headers.get("If-None-Match");
+      const reqIfModifiedSince = request.headers.get("If-Modified-Since");
+
+      let isNotModified = false;
+
+      // 1. ETag 校验：支持逗号分隔和 Weak ETag (W/) 的情况
+      if (reqEtag && reqEtag.includes(currentCacheFingerprint)) {
+        isNotModified = true;
+      } 
+      // 2. Last-Modified 校验：将 HTTP 日期字符串转为时间戳比对大小
+      else if (reqIfModifiedSince) {
+        const clientDate = Date.parse(reqIfModifiedSince);
+        const serverDate = Date.parse(lastModifiedDate);
+        // 如果客户端缓存的时间戳 >= 服务端最新修改的时间戳，说明没有更新
+        if (!isNaN(clientDate) && clientDate >= serverDate) {
+          isNotModified = true;
+        }
+      }
+
+      // 命中缓存，直接掐断后续请求，返回 304 空响应体
+      if (isNotModified) {
+        return new Response(null, {
+          status: 304,
+          headers: baseHeaders
+        });
+      }
 
       // 如果有 KV 绑定则尝试读取缓存
       if (env.SITEMAP_KV) {
@@ -32,7 +73,7 @@ export default {
         if (cachedXml && cachedFingerprint === currentCacheFingerprint) {
           return new Response(cachedXml, {
             headers: { 
-              "Content-Type": "application/xml; charset=utf-8", 
+              ...baseHeaders,
               "X-Sitemap-Status": "Hit-Cache" 
             },
           });
@@ -50,7 +91,7 @@ export default {
       // 首页
       xml += `  <url>\n    <loc>${BASE_URL}/</loc>\n    <changefreq>daily</changefreq>\n    <priority>1.0</priority>\n  </url>\n`;
       
-      // ----------------- 新增：固定界面 -----------------
+      // ----------------- 固定界面 -----------------
       const fixedPages = ['/timeline', '/moments', '/hashtags', '/friends', '/about'];
       for (const page of fixedPages) {
         xml += `  <url>\n    <loc>${BASE_URL}${page}</loc>\n    <changefreq>weekly</changefreq>\n    <priority>0.9</priority>\n  </url>\n`;
@@ -81,7 +122,7 @@ export default {
 
       return new Response(xml, {
         headers: { 
-          "Content-Type": "application/xml; charset=utf-8", 
+          ...baseHeaders,
           "X-Sitemap-Status": "Rebuilt" 
         },
       });
