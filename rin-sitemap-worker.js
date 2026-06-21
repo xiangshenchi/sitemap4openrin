@@ -72,6 +72,10 @@ export default {
 
       // 动态文章页面
       for (const row of results) {
+        // 如果文章别名是 about，则跳过
+        if (row.alias === 'about') {
+          continue;
+        }
         const path = row.alias ? `/${row.alias}` : `/feed/${row.id}`;
         const postUrl = `${BASE_URL}${path}`;
         
