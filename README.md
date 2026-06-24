@@ -145,7 +145,3 @@ wrangler login
 # 本地预览
 wrangler dev
 ```
-
-## 📄 License
-
-MIT License
