@@ -35,8 +35,8 @@ export default {
          WHERE f.draft = 0`
       ).first();
       
-      // 生成缓存指纹：包含文章、动态、友链、标签的最后更新时间
-      const currentCacheFingerprint = `${metaRes.count}_${metaRes.last_update || 0}_${momentsRes.last_update || 0}_${friendsRes.last_update || 0}_${hashtagsMetaRes.count || 0}_${hashtagsMetaRes.last_update || 0}`;
+      // 生成缓存指纹：包含文章数量、文章最后更新时间、动态最后更新时间、友链最后更新时间
+      const currentCacheFingerprint = `${metaRes.count}_${metaRes.last_update || 0}_${momentsRes.last_update || 0}_${friendsRes.last_update || 0}`;
       // --- 构造 ETag 和 Last-Modified 头 ---
       const eTag = `"${currentCacheFingerprint}"`;
       // 将数据库里的秒级时间戳转换成 HTTP 协议标准的 GMT 时间格式。
@@ -104,7 +104,7 @@ export default {
       const fixedPages = [
         { path: '/timeline', lastmod: feedsLastMod, priority: '0.9' },
         { path: '/moments', lastmod: momentsLastMod, priority: '0.9' },
-        { path: '/hashtags', lastmod: hashtagsLastMod, priority: '0.8' },
+        { path: '/hashtags', lastmod: feedsLastMod, priority: '0.8' },
         { path: '/friends', lastmod: friendsLastMod, priority: '0.9' }
       ];
       for (const page of fixedPages) {
