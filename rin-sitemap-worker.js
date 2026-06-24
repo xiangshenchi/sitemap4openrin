@@ -6,12 +6,19 @@ export default {
       return new Response("Not Found", { status: 404 });
     }
     // 优先使用环境变量配置的站点 URL，如果没有配置则动态使用来访请求的域名
-    const BASE_URL = env.SITE_URL ? env.SITE_URL.replace(/\/$/, '') : `${url.protocol}//${url.host}`;
+    const BASE_URL = env.SITE_URL ? env.SITE_URL.replace(/\/+$/, '') : `${url.protocol}//${url.host}`;
     
     const KV_KEY = "cached_sitemap_xml";
     const KV_META = "cached_sitemap_meta"; 
+    
+    // 时间格式化辅助函数
+    const formatLastMod = (timestamp) => {
+      if (!timestamp) return null;
+      return new Date(timestamp * 1000).toISOString().split('T')[0];
+    };
+    
     try {
-      // 并行执行缓存指纹所需的所有查询（方案2优化）
+      // 并行执行缓存指纹所需的所有查询
       const [metaRes, momentsRes, friendsRes] = await Promise.all([
         // 获取文章数量和最后更新时间
         env.DB.prepare(
@@ -29,10 +36,11 @@ export default {
       
       // 生成缓存指纹：包含文章数量、文章最后更新时间、动态最后更新时间、友链最后更新时间
       const currentCacheFingerprint = `${metaRes.count}_${metaRes.last_update || 0}_${momentsRes.last_update || 0}_${friendsRes.last_update || 0}`;
+      
       // --- 构造 ETag 和 Last-Modified 头 ---
       const eTag = `"${currentCacheFingerprint}"`;
       // 将数据库里的秒级时间戳转换成 HTTP 协议标准的 GMT 时间格式。
-      const lastModTimestamp = metaRes.last_update * 1000;
+      const lastModTimestamp = metaRes.last_update ? metaRes.last_update * 1000 : Date.now();
       const lastModifiedDate = new Date(lastModTimestamp).toUTCString();
       // 定义公共基础响应头，直接附加到所有返回响应中
       const baseHeaders = {
@@ -41,33 +49,40 @@ export default {
         "ETag": eTag,
         "Last-Modified": lastModifiedDate
       };
-      // 如果有 KV 绑定则尝试读取缓存
+      
+      // 如果有 KV 绑定则尝试读取缓存（失败时降级处理，不影响主流程）
+      let cacheHit = false;
+      let cachedXml = null;
       if (env.SITEMAP_KV) {
-        const [cachedXml, cachedFingerprint] = await Promise.all([
-          env.SITEMAP_KV.get(KV_KEY),
-          env.SITEMAP_KV.get(KV_META) // 拿以前存的指纹对比
-        ]);
-        if (cachedXml && cachedFingerprint === currentCacheFingerprint) {
-          return new Response(cachedXml, {
-            headers: { 
-              ...baseHeaders,
-              "X-Sitemap-Status": "Hit-Cache" 
-            },
-          });
+        try {
+          const [kvXml, kvFingerprint] = await Promise.all([
+            env.SITEMAP_KV.get(KV_KEY),
+            env.SITEMAP_KV.get(KV_META)
+          ]);
+          if (kvXml && kvFingerprint === currentCacheFingerprint) {
+            cachedXml = kvXml;
+            cacheHit = true;
+          }
+        } catch (kvError) {
+          // KV 读取失败，忽略错误，继续生成 sitemap
+          console.warn("KV cache read failed, regenerating sitemap:", kvError.message);
         }
       }
       
-      // 时间格式化辅助函数
-      const formatLastMod = (timestamp) => {
-        if (!timestamp) return null;
-        return new Date(timestamp * 1000).toISOString().split('T')[0];
-      };
+      if (cacheHit && cachedXml) {
+        return new Response(cachedXml, {
+          headers: { 
+            ...baseHeaders,
+            "X-Sitemap-Status": "Hit-Cache" 
+          },
+        });
+      }
       
       const feedsLastMod = formatLastMod(metaRes.last_update);
       const momentsLastMod = formatLastMod(momentsRes.last_update);
       const friendsLastMod = formatLastMod(friendsRes.last_update);
       
-      // 并行执行文章查询和标签查询（方案3优化）
+      // 并行执行文章查询和标签查询
       const [{ results }, { results: hashtagResults }] = await Promise.all([
         // 查询所有公开且非草稿的文章
         env.DB.prepare(
@@ -107,16 +122,19 @@ export default {
         xml += `    <changefreq>weekly</changefreq>\n    <priority>${page.priority}</priority>\n  </url>\n`;
       }
       // ------------------------------------------------
+      
       // 动态文章页面
       for (const row of results) {
         const path = row.alias ? `/${row.alias}` : `/feed/${row.id}`;
         const postUrl = `${BASE_URL}${path}`;
         
-        // Rin 数据库储存的时间戳(基于 unixepoch)是秒级的
+        // 使用统一的时间格式化函数
         const timestamp = row.updated_at || row.created_at;
-        const lastMod = new Date(timestamp * 1000).toISOString().split('T')[0];
+        const lastMod = formatLastMod(timestamp);
         
-        xml += `  <url>\n    <loc>${postUrl}</loc>\n    <lastmod>${lastMod}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>0.9</priority>\n  </url>\n`;
+        xml += `  <url>\n    <loc>${postUrl}</loc>\n`;
+        if (lastMod) xml += `    <lastmod>${lastMod}</lastmod>\n`;
+        xml += `    <changefreq>weekly</changefreq>\n    <priority>0.9</priority>\n  </url>\n`;
       }
       
       // ----------------- 标签页面 -----------------
@@ -134,13 +152,19 @@ export default {
       // ------------------------------------------------
       
       xml += `</urlset>`;
-      // 异步存入 KV 缓存
+      
+      // 异步存入 KV 缓存（失败不影响主流程）
       if (env.SITEMAP_KV) {
-        ctx.waitUntil(Promise.all([
-          env.SITEMAP_KV.put(KV_KEY, xml),
-          env.SITEMAP_KV.put(KV_META, currentCacheFingerprint)
-        ]));
+        ctx.waitUntil(
+          Promise.all([
+            env.SITEMAP_KV.put(KV_KEY, xml),
+            env.SITEMAP_KV.put(KV_META, currentCacheFingerprint)
+          ]).catch(err => {
+            console.warn("KV cache write failed:", err.message);
+          })
+        );
       }
+      
       return new Response(xml, {
         headers: { 
           ...baseHeaders,
