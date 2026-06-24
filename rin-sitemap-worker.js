@@ -83,7 +83,7 @@ export default {
       // 首页 - 使用文章最后更新时间
       xml += `  <url>\n    <loc>${BASE_URL}/</loc>\n`;
       if (feedsLastMod) xml += `    <lastmod>${feedsLastMod}</lastmod>\n`;
-      xml += `    <changefreq>daily</changefreq>\n    <priority>1.0</priority>\n  </url>\n`;
+      xml += `    <changefreq>weekly</changefreq>\n    <priority>1.0</priority>\n  </url>\n`;
       
       // ----------------- 固定界面 -----------------
       // 每个页面对应不同的 lastmod 来源
@@ -109,7 +109,7 @@ export default {
         const timestamp = row.updated_at || row.created_at;
         const lastMod = new Date(timestamp * 1000).toISOString().split('T')[0];
         
-        xml += `  <url>\n    <loc>${postUrl}</loc>\n    <lastmod>${lastMod}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>0.8</priority>\n  </url>\n`;
+        xml += `  <url>\n    <loc>${postUrl}</loc>\n    <lastmod>${lastMod}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>0.9</priority>\n  </url>\n`;
       }
       
       xml += `</urlset>`;
