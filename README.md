@@ -17,12 +17,12 @@ Sitemap 包含以下页面：
 
 | 页面路径 | lastmod 数据来源 | 更新频率 | 优先级 |
 |---------|----------------|---------|--------|
-| `/` 首页 | feeds 表文章最后更新时间 | daily | 1.0 |
+| `/` 首页 | feeds 表文章最后更新时间 | weekly | 1.0 |
 | `/timeline` 时间线 | feeds 表文章最后更新时间 | weekly | 0.9 |
 | `/hashtags` 标签页 | feeds 表文章最后更新时间 | weekly | 0.9 |
 | `/moments` 动态 | moments 表动态最后更新时间 | weekly | 0.9 |
 | `/friends` 友链 | friends 表友链最后更新时间 | weekly | 0.9 |
-| `/feed/{id}` 或 `/{alias}` 文章 | 各文章自身的更新时间 | weekly | 0.8 |
+| `/feed/{id}` 或 `/{alias}` 文章 | 各文章自身的更新时间 | weekly | 0.9 |
 
 ## 🚀 部署
 
