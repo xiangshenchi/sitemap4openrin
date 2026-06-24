@@ -15,7 +15,7 @@ export default {
     try {
       // 核心修改：获取数量(count)和所有文章中的最后更新时间(last_update)
       const metaRes = await env.DB.prepare(
-        "SELECT COUNT(*) as count, MAX(updated_at) as last_update FROM feeds WHERE listed = 1 AND draft = 0"
+        "SELECT COUNT(*) as count, MAX(updated_at) as last_update FROM feeds WHERE draft = 0"
       ).first();
       
       // 获取 moments 表最后更新时间
@@ -64,7 +64,7 @@ export default {
 
       // 查询所有公开且非草稿的文章
       const { results } = await env.DB.prepare(
-        "SELECT id, alias, updated_at, created_at FROM feeds WHERE listed = 1 AND draft = 0 ORDER BY created_at DESC"
+        "SELECT id, alias, updated_at, created_at FROM feeds WHERE draft = 0 ORDER BY created_at DESC"
       ).all();
 
       // 时间格式化辅助函数
