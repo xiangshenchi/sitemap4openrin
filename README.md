@@ -117,9 +117,8 @@ SITE_URL = "https://blog.yourdomain.com"
 Worker 使用多层缓存策略确保高性能：
 
 1. **HTTP 缓存头**：设置 `Cache-Control: public, max-age=21600`（6小时），支持 CDN 和浏览器缓存
-2. **ETag / Last-Modified**：支持条件请求，未修改时返回 304
-3. **KV 缓存**：将生成的 sitemap XML 存入 KV，避免重复计算
-4. **智能指纹**：缓存指纹由「文章数量 + 文章最后更新时间 + 动态最后更新时间 + 友链最后更新时间」组成，任意数据变化都会自动重建
+2. **KV 缓存**：将生成的 sitemap XML 存入 KV，避免重复计算
+3. **智能指纹**：缓存指纹由「文章数量 + 文章最后更新时间 + 动态最后更新时间 + 友链最后更新时间」组成，任意数据变化都会自动重建
 
 ### 性能优化
 
@@ -152,7 +151,7 @@ Worker 具备完善的容错降级能力，确保服务高可用：
 |-------|------|
 | `X-Sitemap-Status: Hit-Cache` | 命中 KV 缓存 |
 | `X-Sitemap-Status: Rebuilt` | 重新生成 sitemap |
-| `ETag` | 缓存指纹，用于条件请求 |
+| `ETag` | 缓存指纹标识 |
 | `Last-Modified` | 最后更新时间（GMT 格式） |
 
 ## 🔧 本地开发
