@@ -1,10 +1,86 @@
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
-    
+
+    // 统一的 BASE_URL 获取函数
+    const getBaseUrl = () => env.SITE_URL ? env.SITE_URL.replace(/\/+$/, '') : `${url.protocol}//${url.host}`;
+    // 从 BASE_URL 提取纯域名（用于 IndexNow host 字段）
+    const getHost = (baseUrl) => baseUrl.replace(/^https?:\/\//, '').split('/')[0];
+
+    // ---- IndexNow 相关 ----
+    const INDEXNOW_KEY = env.INDEXNOW_KEY;
+    if (INDEXNOW_KEY) {
+      // 提供 IndexNow Key 验证文件（供搜索引擎验证域名所有权）
+      // 访问 https://domain.com/{key}.txt 返回 key 内容
+      if (url.pathname === `/${INDEXNOW_KEY}.txt`) {
+        return new Response(INDEXNOW_KEY, {
+          headers: {
+            "Content-Type": "text/plain; charset=utf-8",
+            "Cache-Control": "public, max-age=86400"
+          }
+        });
+      }
+
+      // IndexNow 提交端点：查询数据库并推送所有 URL 到搜索引擎
+      // 适用场景：Cloudflare Cron Triggers 定时调用 / 发布文章后手动触发
+      if (url.pathname === "/indexnow") {
+        const BASE_URL = getBaseUrl();
+        const HOST = getHost(BASE_URL);
+        try {
+          // 查询所有公开文章
+          const { results: feeds } = await env.DB.prepare(
+            "SELECT id, alias FROM feeds WHERE draft = 0"
+          ).all();
+          // 查询所有标签
+          const { results: tags } = await env.DB.prepare(
+            `SELECT DISTINCT h.name FROM hashtags h
+             JOIN feed_hashtags fh ON h.id = fh.hashtag_id
+             JOIN feeds f ON fh.feed_id = f.id WHERE f.draft = 0`
+          ).all();
+
+          // 构建完整 URL 列表：首页 + 固定页面 + 文章 + 标签页
+          const urlList = [
+            `${BASE_URL}/`,
+            `${BASE_URL}/timeline`,
+            `${BASE_URL}/moments`,
+            `${BASE_URL}/hashtags`,
+            `${BASE_URL}/friends`,
+            ...feeds.map(r => `${BASE_URL}${r.alias ? `/${r.alias}` : `/feed/${r.id}`}`),
+            ...tags.map(t => `${BASE_URL}/hashtag/${encodeURIComponent(t.name)}`)
+          ];
+
+          // 并发提交到多个 IndexNow 端点
+          const endpoints = ["https://api.indexnow.org/indexnow", "https://www.bing.com/indexnow"];
+          const payload = JSON.stringify({ host: HOST, key: INDEXNOW_KEY, urlList });
+          const submits = endpoints.map(endpoint =>
+            fetch(endpoint, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: payload,
+              signal: AbortSignal.timeout(15000)
+            }).then(r => ({ endpoint, status: r.status, ok: r.ok }))
+          );
+          const results = await Promise.allSettled(submits);
+
+          return new Response(JSON.stringify({
+            success: true,
+            total_urls: urlList.length,
+            results: results.map(r =>
+              r.status === "fulfilled" ? r.value : { endpoint: "unknown", status: "error", error: r.reason?.message }
+            )
+          }), { headers: { "Content-Type": "application/json" } });
+        } catch (e) {
+          return new Response(JSON.stringify({ success: false, error: e.message }), {
+            status: 500, headers: { "Content-Type": "application/json" }
+          });
+        }
+      }
+    }
+    // -------------------------
+
     // ---- /robots.txt 处理 ----
     if (url.pathname === "/robots.txt") {
-      const BASE_URL = env.SITE_URL ? env.SITE_URL.replace(/\/+$/, '') : `${url.protocol}//${url.host}`;
+      const BASE_URL = getBaseUrl();
       const robots = `User-agent: *
 Allow: /
 Disallow: /admin
@@ -21,12 +97,11 @@ Sitemap: ${BASE_URL}/sitemap.xml
       });
     }
     // -------------------------
-    
+
     if (url.pathname !== "/sitemap.xml") {
       return new Response("Not Found", { status: 404 });
     }
-    // 优先使用环境变量配置的站点 URL，如果没有配置则动态使用来访请求的域名
-    const BASE_URL = env.SITE_URL ? env.SITE_URL.replace(/\/+$/, '') : `${url.protocol}//${url.host}`;
+    const BASE_URL = getBaseUrl();
     
     const KV_KEY = "cached_sitemap_xml";
     const KV_META = "cached_sitemap_meta"; 

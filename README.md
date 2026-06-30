@@ -10,6 +10,7 @@
 - 🕐 **lastmod 支持**：所有页面均包含 `<lastmod>` 标签，准确反映页面更新时间
 - 🔄 **多数据源**：分别从文章、动态、友链、标签表读取对应页面的最后更新时间
 - 🤖 **robots.txt 托管**：内置 `/robots.txt` 处理，允许主流爬虫，禁止后台隐私路径，自动附加 Sitemap 指令
+- ⚡ **IndexNow 推送**：可选通过 `INDEXNOW_KEY` 环境变量启用，自动提供 Key 验证文件 + 推送所有 URL 到 Bing 等搜索引擎
 
 ## 📋 页面清单
 Sitemap 包含以下页面：
@@ -80,7 +81,29 @@ Sitemap 包含以下页面：
 2. 再次点击 **Add route**
 3. Route 输入：`blog.yourdomain.com/robots.txt`
 4. Zone 选择同一域名，点击 Submit 确认
-5. 部署完成！访问 `https://blog.yourdomain.com/robots.txt` 即可看到生成的 robots.txt 文件
+
+**7.（可选）启用 IndexNow 推送**
+
+如果需要在发布文章后自动通知搜索引擎（Bing 等），按以下步骤操作：
+
+1. 前往 https://www.bing.com/indexnow/getstarted 生成一个 IndexNow Key
+2. 在 Worker 的 **Settings** → **Variables and Secrets** 添加环境变量：
+   - Variable name (变量名): `INDEXNOW_KEY`
+   - Value: 你生成的 Key 字符串
+3. 在 **Settings** → **Domains & Routes** 中添加路由：
+   - `blog.yourdomain.com/indexnow` — IndexNow 提交端点
+
+> 配置后 Worker 会自动响应 `/{你的key}.txt` 的验证请求，无需手动放置 Key 文件。
+
+**（可选）设置定时自动推送**
+
+在 Cloudflare Dashboard 中为该 Worker 添加 Cron Trigger：
+1. 进入 Worker 页面 → **Settings** → **Triggers**
+2. 在 **Cron Triggers** 下点击 **Add Cron Trigger**
+3. 填入 `0 */6 * * *`（每 6 小时推送一次）
+4. Cron Trigger 会自动 GET 请求 `/indexnow` 端点
+
+也可以部署后手动触发：`curl -X POST https://blog.yourdomain.com/indexnow`
 
 #### 方式二：Wrangler CLI 部署
 
@@ -102,15 +125,20 @@ database_id = "填入你的d1-uuid"
 binding = "SITEMAP_KV"
 id = "填入你的kv-uuid"
 
-# 3. （可选）如果你希望确保生成的页面域名万无一失
+# 3. （可选）IndexNow Key
+[vars]
+INDEXNOW_KEY = "你的indexnow-key"
+
+# 4. （可选）如果你希望确保生成的页面域名万无一失
 [vars]
 SITE_URL = "https://blog.yourdomain.com"
 ```
 
 1. 执行 `wrangler deploy` 推送到 Cloudflare
-2. 前往 Cloudflare 控制面板，为这个 Worker 添加两条路径路由 (Routes)：
+2. 前往 Cloudflare 控制面板，为这个 Worker 添加路径路由 (Routes)：
    - `your-blog.com/sitemap.xml` — Sitemap 路由
    - `your-blog.com/robots.txt` — robots.txt 路由（推荐）
+   - `your-blog.com/indexnow` — IndexNow 提交端点（可选）
 3. 部署完成！
 
 ## ⚙️ 环境变量
@@ -120,6 +148,7 @@ SITE_URL = "https://blog.yourdomain.com"
 | `DB` | ✅ | D1 数据库绑定，必须指向 Rin 博客的数据库 |
 | `SITEMAP_KV` | ❌ | KV 命名空间绑定，用于缓存 sitemap 内容 |
 | `SITE_URL` | ❌ | 站点 URL，如 `https://example.com`。不配置则自动使用请求域名 |
+| `INDEXNOW_KEY` | ❌ | IndexNow Key，设置后启用自动推送功能。详见 IndexNow 推送机制 |
 
 ## 📝 工作原理
 
@@ -155,6 +184,27 @@ Worker 具备完善的容错降级能力，确保服务高可用：
 - 只有公开文章会影响标签页的更新时间，草稿文章不会被计入
 
 > 注：标签列表页 `/hashtags` 的 lastmod 与首页、时间线页保持一致，使用 feeds 表中所有公开文章的最后更新时间。
+
+### IndexNow 推送机制
+
+当设置了 `INDEXNOW_KEY` 环境变量时，Worker 会自动启用两个端点：
+
+**`/{key}.txt` — Key 验证文件**
+搜索引擎通过访问此文件验证域名所有权。Worker 动态返回 Key 内容，无需手动在服务器放置文件。
+
+**`/indexnow` — URL 提交端点**
+触发后执行以下流程：
+1. 查询 D1 数据库获取所有公开文章和标签
+2. 构建完整 URL 列表（首页 + 固定页面 + 文章 + 标签页）
+3. 并发 POST 到 `api.indexnow.org` 和 `www.bing.com` 两个端点
+4. 返回 JSON 格式的结果
+
+**触发方式：**
+- **Cloudflare Cron Triggers**（推荐）：在 Worker 的 Triggers 页面添加 Cron Trigger，定时调用 `/indexnow`
+- **手动触发**：`curl https://yourdomain.com/indexnow`
+- **部署后触发**：在 CI/CD 流程中自动调用
+
+> 提交后搜索引擎通常会在数分钟到数小时内开始爬取新内容。IndexNow 建议每天提交不超过 1 次，频繁提交可能影响排名。
 
 ### robots.txt 策略
 
