@@ -9,6 +9,7 @@
 - 🏷️ **标签页支持**：自动生成所有标签页的 sitemap 条目，URL 与 OpenRin 前端路由完全一致
 - 🕐 **lastmod 支持**：所有页面均包含 `<lastmod>` 标签，准确反映页面更新时间
 - 🔄 **多数据源**：分别从文章、动态、友链、标签表读取对应页面的最后更新时间
+- 🤖 **robots.txt 托管**：内置 `/robots.txt` 处理，允许主流爬虫，禁止后台隐私路径，自动附加 Sitemap 指令
 
 ## 📋 页面清单
 Sitemap 包含以下页面：
@@ -72,7 +73,14 @@ Sitemap 包含以下页面：
 2. 点击 **Add route**
 3. 在 Route 一栏输入你希望生效的地址，例如：`blog.yourdomain.com/sitemap.xml`
 4. Zone 挑选对应的根域名，点击 Submit 确认
-5. 部署完成！访问 `https://blog.yourdomain.com/sitemap.xml` 即可看到生成的 XML 文件
+
+**6.（推荐）接管 robots.txt 路由**
+
+1. 同样在 **Settings** → **Domains & Routes** 中
+2. 再次点击 **Add route**
+3. Route 输入：`blog.yourdomain.com/robots.txt`
+4. Zone 选择同一域名，点击 Submit 确认
+5. 部署完成！访问 `https://blog.yourdomain.com/robots.txt` 即可看到生成的 robots.txt 文件
 
 #### 方式二：Wrangler CLI 部署
 
@@ -100,7 +108,10 @@ SITE_URL = "https://blog.yourdomain.com"
 ```
 
 1. 执行 `wrangler deploy` 推送到 Cloudflare
-2. 最后前往 Cloudflare 控制面板，为这个 Worker 自定义一个 `your-blog.com/sitemap.xml` 的路径路由 (Routes) 即可正式生效！
+2. 前往 Cloudflare 控制面板，为这个 Worker 添加两条路径路由 (Routes)：
+   - `your-blog.com/sitemap.xml` — Sitemap 路由
+   - `your-blog.com/robots.txt` — robots.txt 路由（推荐）
+3. 部署完成！
 
 ## ⚙️ 环境变量
 
@@ -145,6 +156,27 @@ Worker 具备完善的容错降级能力，确保服务高可用：
 
 > 注：标签列表页 `/hashtags` 的 lastmod 与首页、时间线页保持一致，使用 feeds 表中所有公开文章的最后更新时间。
 
+### robots.txt 策略
+
+Worker 同时托管 `/robots.txt`，返回以下策略：
+
+```
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /profile
+Disallow: /login
+
+Sitemap: https://yourdomain.com/sitemap.xml
+```
+
+- **允许所有搜索引擎爬虫**抓取公开内容
+- **禁止爬取后台页面**：`/admin`、`/profile`、`/login`
+- **自动附加 Sitemap 指令**：搜索引擎能直接从 robots.txt 发现 sitemap 位置
+- **响应缓存 1 天**：设置 `Cache-Control: public, max-age=86400`，减少 Worker 调用次数
+
+> 需要额外在 Cloudflare 为该 Worker 添加一条 `yourdomain.com/robots.txt` 的路由才能生效。
+
 ### 响应头说明
 
 | 响应头 | 说明 |
@@ -165,6 +197,8 @@ npm install -g wrangler
 # 登录 Cloudflare
 wrangler login
 
-# 本地预览
+# 本地预览（同时测试 sitemap 和 robots.txt）
 wrangler dev
+# 访问 http://localhost:8787/sitemap.xml
+# 访问 http://localhost:8787/robots.txt
 ```
