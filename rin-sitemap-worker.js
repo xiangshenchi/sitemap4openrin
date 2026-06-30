@@ -2,6 +2,26 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     
+    // ---- /robots.txt 处理 ----
+    if (url.pathname === "/robots.txt") {
+      const BASE_URL = env.SITE_URL ? env.SITE_URL.replace(/\/+$/, '') : `${url.protocol}//${url.host}`;
+      const robots = `User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /profile
+Disallow: /login
+
+Sitemap: ${BASE_URL}/sitemap.xml
+`;
+      return new Response(robots, {
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8",
+          "Cache-Control": "public, max-age=86400"
+        }
+      });
+    }
+    // -------------------------
+    
     if (url.pathname !== "/sitemap.xml") {
       return new Response("Not Found", { status: 404 });
     }
