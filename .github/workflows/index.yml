@@ -12,6 +12,6 @@ jobs:
       - name: indexnow-action
         uses: bojieyang/indexnow-action@v3
         with:
-          sitemap-location: 'https://chix.pp.ua/sitemap.xml'
+          sitemap-location: '${{ vars.SITE_URL }}/sitemap.xml'
           key: ${{ secrets.INDEXNOW_KEY }}
 
