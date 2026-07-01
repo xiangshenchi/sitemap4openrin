@@ -16,6 +16,6 @@ jobs:
           key: ${{ secrets.INDEXNOW_KEY }}
           endpoint: api.indexnow.org          # ← 关键：走聚合端点
           since: 1
-          since-unit: day
-          # failure-strategy: error   # 想失败时让 workflow 挂红就解开
+          since-unit: year
+          failure-strategy: error   # 想失败时让 workflow 挂红就解开
 
