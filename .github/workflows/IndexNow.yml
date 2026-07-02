@@ -13,7 +13,7 @@ jobs:
         uses: bojieyang/indexnow-action@v3
         with:
           sitemap-location: '${{ vars.SITE_URL }}/sitemap.xml'
-          # endpoint: api.indexnow.org          # ← 关键：走聚合端点
+          endpoint: api.indexnow.org          # ← 关键：走聚合端点
           since: 3
           since-unit: 'day'
           key: ${{ secrets.INDEXNOW_KEY }}
