@@ -14,8 +14,8 @@ jobs:
         with:
           sitemap-location: '${{ vars.SITE_URL }}/sitemap.xml'
           # endpoint: api.indexnow.org          # ← 关键：走聚合端点
-          since: 1
-          since-unit: 'year'
+          since: 3
+          since-unit: 'day'
           key: ${{ secrets.INDEXNOW_KEY }}
           # failure-strategy: error   # 想失败时让 workflow 挂红就解开
 
