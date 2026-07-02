@@ -1,0 +1,20 @@
+name: 'IndexNow'
+on:
+  schedule:
+    # Set the schedule time
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+jobs:
+  check-and-submit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: indexnow-action
+        uses: bojieyang/indexnow-action@v3
+        with:
+          sitemap-location: '${{ vars.SITE_URL }}/sitemap.xml'
+          # endpoint: api.indexnow.org          # ← 关键：走聚合端点
+          since: 3
+          since-unit: 'year'
+          key: ${{ secrets.INDEXNOW_KEY }}
+          failure-strategy: error   # 想失败时让 workflow 挂红就解开
