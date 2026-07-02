@@ -1,4 +1,4 @@
-name: 'IndexNow'
+name: 'IndexAll'
 on:
   schedule:
     # Set the schedule time
